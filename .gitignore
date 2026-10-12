@@ -1,0 +1,36 @@
+# ==========================================
+# STM32CubeIDE / Eclipse Build Artifacts
+# ==========================================
+Debug/
+Release/
+*.o
+*.d
+*.su
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+*.axf
+.metadata/
+
+# ==========================================
+# Python Artifacts & Virtual Environments
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+venv/
+.venv/
+env/
+*.log
+
+# ==========================================
+# OS & IDE specifics
+# ==========================================
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+*~
