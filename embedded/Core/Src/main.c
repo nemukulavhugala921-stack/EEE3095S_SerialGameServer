@@ -98,11 +98,19 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  uint8_t rx_byte=0;
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    if (HAL_UART_Receive(&huart1, &rx_byte, 1, 100) == HAL_OK)
+    {
+      HAL_UART_Transmit(&huart1, &rx_byte, 1, 100); // Echo character back to PC
+
+      // Visual feedback: toggle LED D0 (PB0) and Green Status LED (PB11) on UCT Dev Board
+      HAL_GPIO_TogglePin(GPIOB, UCT_LED_D0_Pin | UCT_LED_GREEN_Pin);
+    }
   }
   /* USER CODE END 3 */
 }
@@ -217,7 +225,21 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* Enable GPIOB Clock for UCT Dev Board LEDs */
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
+  /* Configure Byte of LEDs (PB0-PB7) and Dual Status LEDs (PB10 Red, PB11 Green) */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 |
+                           GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7 |
+                           GPIO_PIN_10 | GPIO_PIN_11, GPIO_PIN_RESET);
+
+  GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 |
+                        GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7 |
+                        GPIO_PIN_10 | GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
   /* USER CODE END MX_GPIO_Init_2 */
 }
 

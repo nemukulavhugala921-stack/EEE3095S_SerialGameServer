@@ -63,7 +63,22 @@ void Error_Handler(void);
 #define User_LEDC9_GPIO_Port GPIOC
 
 /* USER CODE BEGIN Private defines */
+/* UCT Dev Board Peripheral Mapping (STM32F051C8) */
+#define UCT_LED_D0_Pin          GPIO_PIN_0
+#define UCT_LED_D0_GPIO_Port    GPIOB
+#define UCT_LED_RED_Pin         GPIO_PIN_10
+#define UCT_LED_RED_GPIO_Port   GPIOB
+#define UCT_LED_GREEN_Pin       GPIO_PIN_11
+#define UCT_LED_GREEN_GPIO_Port GPIOB
 
+#define UCT_SW0_Pin             GPIO_PIN_0
+#define UCT_SW0_GPIO_Port       GPIOA
+#define UCT_SW1_Pin             GPIO_PIN_1
+#define UCT_SW1_GPIO_Port       GPIOA
+#define UCT_SW2_Pin             GPIO_PIN_2
+#define UCT_SW2_GPIO_Port       GPIOA
+#define UCT_SW3_Pin             GPIO_PIN_3
+#define UCT_SW3_GPIO_Port       GPIOA
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
