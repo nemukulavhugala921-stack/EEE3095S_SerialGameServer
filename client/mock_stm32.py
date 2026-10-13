@@ -44,6 +44,7 @@ class MockSTM32:
 
     def handle_command(self, command):
         """Process one complete command without its line ending."""
+
         if command == "CONNECT":
             self.reset_session()
             return "OK"
@@ -72,12 +73,44 @@ class MockSTM32:
             return "OK:GAMEOVER"
 
         if command.startswith("MOVE:"):
-            return self.handle_move(command[5:])
+            parts = command.split(":")
+
+            # A move must contain a player and a square index.
+            if len(parts) != 3:
+                return "NACK:BADCMD"
+
+            _, player, index_text = parts
+
+            # Only X and O are valid players.
+            if player not in ("X", "O"):
+                return "NACK:BADCMD"
+
+            # A move is only allowed during an active game.
+            if self.state != IN_PROGRESS:
+                return "NACK:NOGAME"
+
+            # The square index must be a decimal number.
+            if not index_text.isascii() or not index_text.isdigit():
+                return "NACK:RANGE"
+
+            index = int(index_text)
+
+            if not 0 <= index <= 8:
+                return "NACK:RANGE"
+
+            # Reject moves from the wrong player.
+            # The board and current turn remain unchanged.
+            if player != self.current_player:
+                return "NACK:NOTURN"
+
+            # Apply the legal move.
+            return self.handle_move(index_text)
 
         return "NACK:BADCMD"
 
     def handle_move(self, index_text):
         """Validate a move and return the server's response."""
+
         # Only non-negative decimal digits are accepted.
         if not index_text.isascii() or not index_text.isdigit():
             return "NACK:RANGE"
@@ -93,14 +126,16 @@ class MockSTM32:
         if self.board[index] != ".":
             return "NACK:OCCUPIED"
 
-        # Apply the legal move.
+        # Apply the move using the current player.
         self.board[index] = self.current_player
 
+        # Check whether this move wins the game.
         if self.has_won(self.current_player):
             winner = self.current_player
             self.state = GAME_OVER
             return f"WIN:{winner}"
 
+        # Check whether all squares are filled.
         if "." not in self.board:
             self.state = GAME_OVER
             return "DRAW"
@@ -122,6 +157,7 @@ class MockSTM32:
 
 def serve_client(connection, address):
     """Receive newline-terminated commands and return responses."""
+
     print(f"Client connected: {address}")
 
     server = MockSTM32()
@@ -142,8 +178,9 @@ def serve_client(connection, address):
                             response = "NACK:BADCMD"
                             discarding_oversized_frame = False
                             buffer.clear()
+
                         else:
-                            # Support both LF and CRLF.
+                            # Support both LF and CRLF line endings.
                             if buffer.endswith(b"\r"):
                                 buffer.pop()
 
@@ -165,7 +202,7 @@ def serve_client(connection, address):
                         continue
 
                     elif len(buffer) >= MAX_FRAME_LENGTH:
-                        # The next byte would exceed the 64-byte limit.
+                        # Discard frames that exceed the 64-byte limit.
                         buffer.clear()
                         discarding_oversized_frame = True
 
@@ -181,8 +218,13 @@ def serve_client(connection, address):
 
 def main():
     """Start the local mock server."""
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.setsockopt(
+            socket.SOL_SOCKET,
+            socket.SO_REUSEADDR,
+            1,
+        )
         server_socket.bind((HOST, PORT))
         server_socket.listen()
 
@@ -194,6 +236,7 @@ def main():
             while True:
                 connection, address = server_socket.accept()
                 serve_client(connection, address)
+
         except KeyboardInterrupt:
             print("\nStopping mock STM32 server.")
 
