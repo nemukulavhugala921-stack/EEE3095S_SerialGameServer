@@ -1,27 +1,60 @@
 
 """Automated tests for the Tic-Tac-Toe client and mock server."""
 
+import socket
+import threading
+
 import pytest
 
-from client import serial_client
+from client import mock_stm32, serial_client
 
 
 @pytest.fixture
-def connected_client():
-    """Connect to the running mock server before a test."""
-    connected = serial_client.connect("mock")
+def connected_client(monkeypatch):
+    """Connect to a per-test mock server on an ephemeral local port."""
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind((mock_stm32.HOST, 0))
+    server_socket.listen()
+    server_socket.settimeout(0.1)
+    stop_server = threading.Event()
 
-    if not connected:
-        pytest.fail(
-            "Could not connect to mock server. "
-            "Start it with: python client/mock_stm32.py"
-        )
+    def serve_one_client():
+        while not stop_server.is_set():
+            try:
+                connection, address = server_socket.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                return
 
-    assert serial_client.send_command("CONNECT") == "OK"
+            mock_stm32.serve_client(connection, address)
+            return
 
-    yield
+    server_thread = threading.Thread(
+        target=serve_one_client,
+        daemon=True,
+    )
+    server_thread.start()
 
-    serial_client.disconnect()
+    monkeypatch.setattr(serial_client, "MOCK_HOST", mock_stm32.HOST)
+    monkeypatch.setattr(
+        serial_client,
+        "MOCK_PORT",
+        server_socket.getsockname()[1],
+    )
+
+    try:
+        if not serial_client.connect("mock"):
+            pytest.fail("Could not connect to the per-test mock server.")
+
+        assert serial_client.send_command("CONNECT") == "OK"
+        yield
+    finally:
+        serial_client.disconnect()
+        stop_server.set()
+        server_socket.close()
+        server_thread.join(timeout=1.0)
+        assert not server_thread.is_alive()
 
 
 def test_connect_and_disconnect(connected_client):

@@ -91,6 +91,7 @@ def send_command(command):
                 byte = connection.read(1)
 
             if not byte:
+                disconnect()
                 return None
 
             if byte == b"\n":
@@ -99,11 +100,15 @@ def send_command(command):
             if byte != b"\r":
                 response.extend(byte)
         else:
+            disconnect()
             return None
 
         return response.decode("ascii")
 
-    except (OSError, serial.SerialException, UnicodeDecodeError, ValueError):
+    except (OSError, serial.SerialException, UnicodeDecodeError):
+        disconnect()
+        return None
+    except ValueError:
         return None
 
 
@@ -133,7 +138,7 @@ if __name__ == "__main__":
     if connect():
         print("Connected to mock server.")
 
-        for command in ("CONNECT", "NEW", "MOVE:0", "STATE"):
+        for command in ("CONNECT", "NEW", "MOVE:X:0", "STATE"):
             print(f"{command} -> {send_command(command)}")
 
         disconnect()

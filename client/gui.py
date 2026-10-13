@@ -176,7 +176,13 @@ class TicTacToeGUI:
             return
 
         if response.startswith("OK:BOARD:"):
-            self.read_board(response[len("OK:BOARD:"):])
+            board_text = response[len("OK:BOARD:"):]
+
+            if not self.read_board(board_text):
+                self.status_label.config(
+                    text="Invalid board from server."
+                )
+                return
 
             self.current_player = (
                 "O" if self.current_player == "X" else "X"
@@ -188,8 +194,15 @@ class TicTacToeGUI:
             )
 
         elif response.startswith("WIN:"):
-            self.read_board_after_terminal_move(index)
             winner = response.split(":", 1)[1]
+
+            if winner not in ("X", "O"):
+                self.status_label.config(
+                    text=f"Unexpected response: {response}"
+                )
+                return
+
+            self.read_board_after_terminal_move(index)
             self.game_started = False
 
             self.update_board()
@@ -233,6 +246,9 @@ class TicTacToeGUI:
             cell in ".XO" for cell in board_text
         ):
             self.board = list(board_text)
+            return True
+
+        return False
 
     def read_board_after_terminal_move(self, index):
         """Read the board after a win or draw response."""
@@ -291,23 +307,30 @@ class TicTacToeGUI:
     def communication_error(self):
         """Handle a missing server response."""
         self.game_started = False
+        self.connected = False
+        serial_client.disconnect()
+
+        self.connect_button.config(state=tk.NORMAL)
+        self.port_entry.config(state=tk.NORMAL)
+        self.new_game_button.config(state=tk.DISABLED)
+        self.state_button.config(state=tk.DISABLED)
+
         self.update_board()
 
-        self.status_label.config(
-            text="Communication failed. Reconnect."
-        )
+        self.status_label.config(text="Communication failed. Reconnect.")
 
         messagebox.showerror(
             "Communication Error",
             "No valid response from the server. "
-            "Close the GUI and reconnect.",
+            "Check the connection and reconnect.",
         )
 
     def close_window(self):
         """Close the connection before exiting."""
         if self.connected:
-            serial_client.disconnect()
+            serial_client.send_command("DISCONNECT")
 
+        serial_client.disconnect()
         self.root.destroy()
 
 

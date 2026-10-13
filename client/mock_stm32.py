@@ -6,11 +6,13 @@ It does not replace or prove the real STM32 firmware works.
 """
 
 import socket
+import time
 
 # Local development connection settings.
 HOST = "127.0.0.1"
 PORT = 8765
 MAX_FRAME_LENGTH = 64
+PARTIAL_FRAME_TIMEOUT = 1.0
 
 # Server states.
 IDLE = "IDLE"
@@ -163,17 +165,42 @@ def serve_client(connection, address):
     server = MockSTM32()
     buffer = bytearray()
     discarding_oversized_frame = False
+    last_byte_at = None
 
     try:
+        connection.settimeout(PARTIAL_FRAME_TIMEOUT)
+
         with connection:
             while True:
-                data = connection.recv(1024)
+                try:
+                    data = connection.recv(1024)
+                except socket.timeout:
+                    if last_byte_at is not None:
+                        remaining = PARTIAL_FRAME_TIMEOUT - (
+                            time.monotonic() - last_byte_at
+                        )
+
+                        if remaining <= 0:
+                            buffer.clear()
+                            discarding_oversized_frame = False
+                            last_byte_at = None
+                            connection.settimeout(PARTIAL_FRAME_TIMEOUT)
+                            connection.sendall(b"NACK:BADCMD\n")
+                            print("Response: NACK:BADCMD")
+                        else:
+                            connection.settimeout(remaining)
+
+                    continue
 
                 if not data:
                     break
 
+                connection.settimeout(PARTIAL_FRAME_TIMEOUT)
+
                 for byte in data:
                     if byte == ord("\n"):
+                        last_byte_at = None
+
                         if discarding_oversized_frame:
                             response = "NACK:BADCMD"
                             discarding_oversized_frame = False
@@ -199,15 +226,18 @@ def serve_client(connection, address):
 
                     elif discarding_oversized_frame:
                         # Ignore the rest until the frame's newline.
+                        last_byte_at = time.monotonic()
                         continue
 
                     elif len(buffer) >= MAX_FRAME_LENGTH:
                         # Discard frames that exceed the 64-byte limit.
                         buffer.clear()
                         discarding_oversized_frame = True
+                        last_byte_at = time.monotonic()
 
                     else:
                         buffer.append(byte)
+                        last_byte_at = time.monotonic()
 
     except OSError as error:
         print(f"Connection error: {error}")
