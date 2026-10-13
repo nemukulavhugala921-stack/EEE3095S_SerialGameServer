@@ -21,8 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
- #include <string.h>
-
+#include <string.h>
+#include "protocol.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -94,23 +94,19 @@ int main(void)
   const char test_msg[] = "STM32 SERIAL SERVER READY\r\n";
   HAL_UART_Transmit(&huart1, (uint8_t*)test_msg, sizeof(test_msg)-1, 100);
 
+  /* Initialize interrupt-driven circular ring buffer protocol layer */
+  protocol_init(&huart1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  uint8_t rx_byte=0;
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    if (HAL_UART_Receive(&huart1, &rx_byte, 1, 100) == HAL_OK)
-    {
-      HAL_UART_Transmit(&huart1, &rx_byte, 1, 100); // Echo character back to PC
-
-      // Visual feedback: toggle LED D0 (PB0) and Green Status LED (PB11) on UCT Dev Board
-      HAL_GPIO_TogglePin(GPIOB, UCT_LED_D0_Pin | UCT_LED_GREEN_Pin);
-    }
+    /* Non-blocking protocol processing of ring buffer */
+    protocol_poll();
   }
   /* USER CODE END 3 */
 }
@@ -244,7 +240,23 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART1)
+  {
+    protocol_rx_isr();
+    /* Visual indicator on UCT Dev Board: toggle D0 when packet byte arrives */
+    HAL_GPIO_TogglePin(GPIOB, UCT_LED_D0_Pin);
+  }
+}
 
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART1)
+  {
+    protocol_error_isr();
+  }
+}
 /* USER CODE END 4 */
 
 /**
