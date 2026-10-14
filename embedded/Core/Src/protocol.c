@@ -1,4 +1,5 @@
 #include "protocol.h"
+#include "game.h"
 #include <string.h>
 #include <stdbool.h>
 
@@ -36,6 +37,9 @@ void protocol_init(UART_HandleTypeDef *huart)
     g_ring_tail = 0;
     g_frame_len = 0;
     g_frame_overflow = false;
+
+    /* Initialize game engine state */
+    game_init();
 
     /* Start interrupt-driven reception for 1 byte */
     if (g_huart != NULL)
@@ -140,23 +144,47 @@ void protocol_poll(void)
 
 static void protocol_dispatch_command(const char *cmd)
 {
-    /* Handshake commands */
+    char resp[PROTOCOL_MAX_FRAME_LEN + 1];
+
     if (strcmp(cmd, "CONNECT") == 0)
     {
-        protocol_send("OK\n");
+        game_process_connect(resp, sizeof(resp));
+        protocol_send(resp);
         return;
     }
 
     if (strcmp(cmd, "DISCONNECT") == 0)
     {
-        protocol_send("OK\n");
+        game_process_disconnect(resp, sizeof(resp));
+        protocol_send(resp);
+        return;
+    }
+
+    if (strcmp(cmd, "NEW") == 0)
+    {
+        game_process_new(resp, sizeof(resp));
+        protocol_send(resp);
         return;
     }
 
     if (strcmp(cmd, "STATE") == 0)
     {
-        /* Returns empty board snapshot for now */
-        protocol_send("BOARD:.........\n");
+        game_process_state(resp, sizeof(resp));
+        protocol_send(resp);
+        return;
+    }
+
+    if (strcmp(cmd, "RESIGN") == 0)
+    {
+        game_process_resign(resp, sizeof(resp));
+        protocol_send(resp);
+        return;
+    }
+
+    if (strncmp(cmd, "MOVE:", 5) == 0)
+    {
+        game_process_move(cmd + 5, resp, sizeof(resp));
+        protocol_send(resp);
         return;
     }
 
