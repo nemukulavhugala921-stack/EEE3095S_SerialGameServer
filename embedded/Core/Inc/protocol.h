@@ -22,6 +22,12 @@
 void protocol_init(UART_HandleTypeDef *huart);
 
 /**
+ * @brief Push a received raw byte directly into the circular ring buffer.
+ *        Called directly from USART1_IRQHandler for zero latency.
+ */
+void protocol_push_byte(uint8_t c);
+
+/**
  * @brief Must be called from HAL_UART_RxCpltCallback when a byte arrives.
  */
 void protocol_rx_isr(void);

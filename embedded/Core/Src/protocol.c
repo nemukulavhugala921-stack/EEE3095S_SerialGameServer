@@ -41,10 +41,22 @@ void protocol_init(UART_HandleTypeDef *huart)
     /* Initialize game engine state */
     game_init();
 
-    /* Start interrupt-driven reception for 1 byte */
+    /* Enable USART1 RXNE interrupt directly for zero-latency non-blocking operation */
     if (g_huart != NULL)
     {
-        HAL_UART_Receive_IT(g_huart, &g_rx_isr_byte, 1);
+        g_huart->Instance->CR1 |= USART_CR1_RXNEIE;
+    }
+}
+
+void protocol_push_byte(uint8_t c)
+{
+    uint16_t next_head = (uint16_t)((g_ring_head + 1) % PROTOCOL_RING_BUFFER_SIZE);
+
+    /* If queue is not full, store the byte (prevents tail overwrite) */
+    if (next_head != g_ring_tail)
+    {
+        g_ring_buf[g_ring_head] = c;
+        g_ring_head = next_head;
     }
 }
 

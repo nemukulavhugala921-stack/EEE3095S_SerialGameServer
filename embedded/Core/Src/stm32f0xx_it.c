@@ -22,6 +22,7 @@
 #include "stm32f0xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "protocol.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -146,7 +147,22 @@ void SysTick_Handler(void)
 void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
-
+  uint32_t isr = USART1->ISR;
+  if ((isr & USART_ISR_RXNE) != 0)
+  {
+    uint8_t c = (uint8_t)(USART1->RDR & 0xFF);
+    protocol_push_byte(c);
+  }
+  if ((isr & USART_ISR_ORE) != 0)
+  {
+    USART1->ICR = USART_ICR_ORECF;
+  }
+  if ((isr & USART_ISR_FE) != 0)
+  {
+    USART1->ICR = USART_ICR_FECF;
+  }
+  /* Bypassing HAL_UART_IRQHandler for RX prevents HAL state-lock & dropped bytes at 115200 */
+  return;
   /* USER CODE END USART1_IRQn 0 */
   HAL_UART_IRQHandler(&huart1);
   /* USER CODE BEGIN USART1_IRQn 1 */
