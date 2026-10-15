@@ -34,6 +34,11 @@ GameState game_get_state(void);
 char game_get_current_player(void);
 
 /**
+ * @brief Get the winner of the game ('X', 'O', 'D' for Draw, or '.' if none/idle).
+ */
+char game_get_winner(void);
+
+/**
  * @brief Copy the current 9-character board string into out_board (at least 10 bytes).
  */
 void game_get_board_string(char *out_board);

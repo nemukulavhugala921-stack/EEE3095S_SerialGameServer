@@ -10,6 +10,7 @@
 static char g_board[10];           /* 9 cells + null terminator */
 static char g_current_player = 'X';
 static GameState g_state = GAME_STATE_IDLE;
+static char g_winner = '.';
 
 /* 8 Winning Combinations (Rows, Columns, Diagonals) */
 static const uint8_t WIN_COMBOS[8][3] = {
@@ -63,6 +64,7 @@ void game_init(void)
     g_board[9] = '\0';
     g_current_player = 'X';
     g_state = GAME_STATE_IDLE;
+    g_winner = '.';
 }
 
 GameState game_get_state(void)
@@ -73,6 +75,11 @@ GameState game_get_state(void)
 char game_get_current_player(void)
 {
     return g_current_player;
+}
+
+char game_get_winner(void)
+{
+    return g_winner;
 }
 
 void game_get_board_string(char *out_board)
@@ -108,6 +115,7 @@ void game_process_new(char *response_buf, size_t max_len)
     g_board[9] = '\0';
     g_current_player = 'X';
     g_state = GAME_STATE_IN_PROGRESS;
+    g_winner = '.';
 
     snprintf(response_buf, max_len, "OK:BOARD:.........\n");
 }
@@ -126,6 +134,7 @@ void game_process_resign(char *response_buf, size_t max_len)
     }
 
     g_state = GAME_STATE_GAME_OVER;
+    g_winner = (g_current_player == 'X') ? 'O' : 'X';
     snprintf(response_buf, max_len, "OK:GAMEOVER\n");
 }
 
@@ -206,6 +215,7 @@ void game_process_move(const char *payload, char *response_buf, size_t max_len)
     if (check_win(player))
     {
         g_state = GAME_STATE_GAME_OVER;
+        g_winner = player;
         snprintf(response_buf, max_len, "WIN:%c\n", player);
         return;
     }
@@ -214,6 +224,7 @@ void game_process_move(const char *payload, char *response_buf, size_t max_len)
     if (check_board_full())
     {
         g_state = GAME_STATE_GAME_OVER;
+        g_winner = 'D';
         snprintf(response_buf, max_len, "DRAW\n");
         return;
     }

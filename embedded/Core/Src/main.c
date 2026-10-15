@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include <string.h>
 #include "protocol.h"
+#include "hardware.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -96,6 +97,9 @@ int main(void)
 
   /* Initialize interrupt-driven circular ring buffer protocol layer */
   protocol_init(&huart1);
+
+  /* Initialize hardware button debouncer and LED indicators */
+  hardware_init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -107,6 +111,9 @@ int main(void)
     /* USER CODE BEGIN 3 */
     /* Non-blocking protocol processing of ring buffer */
     protocol_poll();
+
+    /* Non-blocking hardware task: button debouncing and LED status updates */
+    hardware_update();
   }
   /* USER CODE END 3 */
 }
@@ -245,8 +252,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
   if (huart->Instance == USART1)
   {
     protocol_rx_isr();
-    /* Visual indicator on UCT Dev Board: toggle D0 when packet byte arrives */
-    HAL_GPIO_TogglePin(GPIOB, UCT_LED_D0_Pin);
+    /* Visual indicator on UCT Dev Board: pulse D0 when packet byte arrives */
+    hardware_indicate_activity();
   }
 }
 
