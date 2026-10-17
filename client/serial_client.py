@@ -18,6 +18,7 @@ MOCK_PORT = 8765
 BAUD_RATE = 115200
 TIMEOUT = 1.0
 MAX_RESPONSE_LENGTH = 64
+SERIAL_STARTUP_BANNER = "STM32 SERIAL SERVER READY"
 
 # Active connection and response reader.
 connection = None
@@ -82,28 +83,37 @@ def send_command(command):
         connection.sendall(message) if transport == "mock" else connection.write(message)
 
         # Read the response one byte at a time.
-        response = bytearray()
+        while True:
+            response = bytearray()
 
-        while len(response) < MAX_RESPONSE_LENGTH:
-            if transport == "mock":
-                byte = reader.read(1)
+            while len(response) < MAX_RESPONSE_LENGTH:
+                if transport == "mock":
+                    byte = reader.read(1)
+                else:
+                    byte = connection.read(1)
+
+                if not byte:
+                    disconnect()
+                    return None
+
+                if byte == b"\n":
+                    break
+
+                if byte != b"\r":
+                    response.extend(byte)
             else:
-                byte = connection.read(1)
-
-            if not byte:
                 disconnect()
                 return None
 
-            if byte == b"\n":
-                break
+            response_text = response.decode("ascii")
 
-            if byte != b"\r":
-                response.extend(byte)
-        else:
-            disconnect()
-            return None
+            if (
+                transport == "serial"
+                and response_text == SERIAL_STARTUP_BANNER
+            ):
+                continue
 
-        return response.decode("ascii")
+            return response_text
 
     except (OSError, serial.SerialException, UnicodeDecodeError):
         disconnect()
