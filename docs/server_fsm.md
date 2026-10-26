@@ -9,39 +9,44 @@ The embedded firmware implements an authoritative game server using a 3-state Fi
 
 ```mermaid
 stateDiagram-v2
-    [*] --> IDLE : Power On / System Reset
+    [*] --> IDLE : Power On / MCU Hardware Reset
 
     state IDLE {
         description: Board empty ("........."), LEDs OFF, Waiting for game start
     }
 
     state IN_PROGRESS {
-        description: Active match, Turn validation (X / O), LED indicates current player
+        description: Active match, Turn validation (X / O), LED indicates active turn
     }
 
     state GAME_OVER {
         description: Match finished (Win / Draw), 5 Hz LED blinker active
     }
 
+    %% Self loops on IDLE
     IDLE --> IDLE : CONNECT -> OK\nSTATE -> BOARD:.........\nDISCONNECT -> OK
-    IDLE --> IDLE : MOVE -> NACK:NOGAME\nRESIGN -> NACK:NOGAME
+    IDLE --> IDLE : MOVE / RESIGN -> NACK:NOGAME
 
-    IDLE --> IN_PROGRESS : NEW -> OK:BOARD:.........\n(Reset board, Player = X)
+    %% Forward transition to active match
+    IDLE --> IN_PROGRESS : NEW -> OK:BOARD:.........\n(Init board, Player = X)
 
-    IN_PROGRESS --> IN_PROGRESS : Valid MOVE (no 3-in-row, moves < 9)\n-> OK:BOARD:<grid>\n(Turn alternates X <-> O)
-    IN_PROGRESS --> IN_PROGRESS : Invalid MOVE\n(NACK:NOTURN, NACK:OCCUPIED, NACK:RANGE)
-    IN_PROGRESS --> IN_PROGRESS : STATE -> BOARD:<grid>\nCONNECT -> OK
+    %% In-Progress operations
+    IN_PROGRESS --> IN_PROGRESS : Valid MOVE [no win] -> OK:BOARD:<grid>\n(Turn alternates X <-> O)
+    IN_PROGRESS --> IN_PROGRESS : Invalid MOVE -> NACK:NOTURN | NACK:OCCUPIED | NACK:RANGE
+    IN_PROGRESS --> IN_PROGRESS : STATE -> BOARD:<grid>\nNEW -> NACK:BADCMD
 
-    IN_PROGRESS --> GAME_OVER : Valid MOVE (3-in-a-row detected)\n-> WIN:<X|O>\n(Winner LED blinks at 5 Hz)
-    IN_PROGRESS --> GAME_OVER : Valid MOVE (9 cells filled, no winner)\n-> DRAW\n(Both LEDs blink at 5 Hz)
-    IN_PROGRESS --> GAME_OVER : RESIGN -> OK:WIN:<opponent>
+    %% Terminal transitions to GAME_OVER
+    IN_PROGRESS --> GAME_OVER : MOVE [win detected] -> WIN:<X|O>\n(Winner LED blinks at 5 Hz)
+    IN_PROGRESS --> GAME_OVER : MOVE [9 cells filled, no win] -> DRAW\n(Both LEDs blink at 5 Hz)
+    IN_PROGRESS --> GAME_OVER : RESIGN -> OK:GAMEOVER
 
-    GAME_OVER --> GAME_OVER : STATE -> WIN:<winner> or DRAW\nMOVE -> NACK:NOGAME\nCONNECT -> OK
-    GAME_OVER --> IN_PROGRESS : NEW -> OK:BOARD:.........\n(Reset board, Player = X)
+    %% Game Over operations
+    GAME_OVER --> GAME_OVER : STATE -> BOARD:<grid>\nMOVE / RESIGN -> NACK:NOGAME
+    GAME_OVER --> IN_PROGRESS : NEW -> OK:BOARD:.........\n(Replay: Reset board, Player = X)
 
-    IN_PROGRESS --> IDLE : SW0 Pressed (PA0 Low)\nLocal Reset
-    GAME_OVER --> IDLE : SW0 Pressed (PA0 Low)\nLocal Reset
-    IDLE --> IDLE : SW0 Pressed (PA0 Low)\nNo change
+    %% Resets returning to IDLE
+    IN_PROGRESS --> IDLE : SW0 Button Press (PA0)\nCONNECT -> OK\nDISCONNECT -> OK
+    GAME_OVER --> IDLE : SW0 Button Press (PA0)\nCONNECT -> OK\nDISCONNECT -> OK
 ```
 
 ---
@@ -85,7 +90,7 @@ stateDiagram-v2
     * If move is valid and all 9 cells full without winner $\rightarrow$ `DRAW` (transitions to `GAME_OVER`)
     * If move is valid and game continues $\rightarrow$ `OK:BOARD:<grid>` (updates board, swaps turn)
   * `STATE` $\rightarrow$ `BOARD:<grid>`
-  * `RESIGN` $\rightarrow$ `OK:WIN:<opponent>` (transitions to `GAME_OVER`)
+  * `RESIGN` $\rightarrow$ `OK:GAMEOVER` (transitions to `GAME_OVER`)
 
 ---
 
@@ -102,4 +107,5 @@ stateDiagram-v2
   * `MOVE:<player>:<index>` $\rightarrow$ `NACK:NOGAME`
   * `STATE` $\rightarrow$ `WIN:<winner>` or `DRAW`
   * `NEW` $\rightarrow$ `OK:BOARD:.........` (transitions to `IN_PROGRESS`)
-  * Hardware button `SW0` $\rightarrow$ transitions to `IDLE`
+  * `CONNECT` / `DISCONNECT` $\rightarrow$ `OK` (transitions to `IDLE`)
+  * Hardware button `SW0` (active low on PA0) $\rightarrow$ transitions to `IDLE`

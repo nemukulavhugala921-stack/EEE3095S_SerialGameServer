@@ -1,0 +1,60 @@
+\section{Introduction}
+\label{sec:intro}
+
+% ── Mark scheme: 10 marks, ~half a page ──────────────────────────────────────
+
+Game software normally runs entirely on a PC.
+The PC decides whether a move is legal, tracks the board, and detects the winner.
+This design has a serious weakness: a client that sends moves in the wrong order, or
+claims a square is free when it is not, could corrupt the game.
+The project brief~\cite{brief} addresses this by reversing the roles.
+The STM32 microcontroller is the sole referee.
+It stores the board, validates every action and returns the authoritative result.
+The PC client only draws the board and forwards what the player clicks.
+The central design invariant enforced by the server is that a rejected request
+leaves the game state strictly unchanged---the board after an invalid move is
+identical to the board before it.
+
+We implemented \textbf{Tic-Tac-Toe} (also called noughts and crosses), the baseline
+game described in the brief.
+Tic-Tac-Toe has a small, well-defined state (nine cells, two players, eight winning
+lines) that fits comfortably in the STM32's memory and can be exhaustively tested
+in under a minute.
+For the graphical user interface (GUI) we chose Python's built-in \textbf{Tkinter}
+library~\cite{guilib}.
+Tkinter requires no additional installation, runs on Windows without extra drivers,
+and handles user events and screen updates in a single thread using the Tk event loop,
+which removes the need for explicit threads when waiting for the serial reply.
+
+The system is divided into three layers.
+The embedded firmware on the STM32 handles all rule enforcement and game logic.
+A thin serial driver on the PC opens the COM port and exchanges newline-terminated
+ASCII frames at 115\,200 baud.
+The Tkinter GUI sits on top of the driver and deals only with drawing and user input.
+This layering means the game rules can be tested independently of the screen by
+sending raw commands over the serial port, which is exactly how our automated test
+harness works.
+
+\textbf{Task allocation.}
+Nemukula Vhugala (Partner~A) was responsible for the embedded firmware: the
+interrupt-driven UART receiver and circular ring buffer (\texttt{protocol.c}),
+the game finite-state machine (FSM) and rule engine (\texttt{game.c}), and the
+hardware integration---button debouncing and LED status indicators
+(\texttt{hardware.c}).
+Munyai Umusindisi Cindy (Partner~B) was responsible for the PC-side software:
+the serial communication driver (\texttt{serial\_client.py}), the Tkinter GUI
+(\texttt{gui.py}), and the automated hardware test harness
+(\texttt{test\_day3\_stm32.py}).
+Both partners contributed to the protocol specification, system integration,
+and this report.
+
+\textbf{Structure.}
+Section~\ref{sec:protocol} describes the serial link, frame format, and full
+command set.
+Section~\ref{sec:design} presents the server FSM, GUI flowchart, and circuit diagram.
+Section~\ref{sec:impl} highlights the most challenging pieces of implementation.
+Section~\ref{sec:authority} argues that the server enforces all game rules
+and cannot be bypassed by a misbehaving client.
+Section~\ref{sec:robust} explains how the server handles malformed or unexpected input.
+Section~\ref{sec:valid} presents the automated test results on the real STM32 board.
+Section~\ref{sec:conclusion} summarises the outcome and suggests improvements.

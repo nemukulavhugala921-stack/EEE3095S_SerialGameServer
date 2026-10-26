@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 480" width="100%" height="100%" style="background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Arrow marker definition -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#1e293b" />
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#15803d" />
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#b91c1c" />
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#2563eb" />
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="2" dy="3" stdDeviation="3" flood-opacity="0.12" />
+    </filter>
+  </defs>
+
+  <!-- ==================== INITIAL PSEUDO-STATE ==================== -->
+  <circle cx="50" cy="190" r="14" fill="#0f172a" />
+  <path d="M 64 190 L 108 190" stroke="#1e293b" stroke-width="2.5" marker-end="url(#arrow)" fill="none" />
+  <text x="35" y="160" font-size="12" font-weight="600" fill="#475569">Power On /</text>
+  <text x="35" y="174" font-size="12" font-weight="600" fill="#475569">MCU Reset</text>
+
+  <!-- ==================== STATE 1: IDLE ==================== -->
+  <g transform="translate(110, 145)" filter="url(#shadow)">
+    <rect width="180" height="90" rx="16" fill="#e2e8f0" stroke="#475569" stroke-width="2.5" />
+    <text x="90" y="38" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle">IDLE</text>
+    <line x1="15" y1="48" x2="165" y2="48" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3 3" />
+    <text x="90" y="66" font-size="12" font-weight="600" fill="#334155" text-anchor="middle">LEDs: OFF (PB10, PB11)</text>
+    <text x="90" y="80" font-size="11" fill="#64748b" text-anchor="middle">Waiting for Client</text>
+  </g>
+
+  <!-- Self-Loop IDLE -->
+  <path d="M 160 145 C 160 65, 240 65, 240 143" stroke="#475569" stroke-width="2" marker-end="url(#arrow)" fill="none" />
+  <g transform="translate(200, 50)">
+    <rect x="-95" y="-35" width="190" height="48" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1" />
+    <text x="0" y="-20" font-size="11" font-weight="600" fill="#1e293b" text-anchor="middle">CONNECT / OK</text>
+    <text x="0" y="-7" font-size="11" font-weight="600" fill="#1e293b" text-anchor="middle">STATE / BOARD:.........</text>
+    <text x="0" y="6" font-size="10" fill="#64748b" text-anchor="middle">MOVE, RESIGN / NACK:NOGAME</text>
+  </g>
+
+  <!-- ==================== STATE 2: IN_PROGRESS ==================== -->
+  <g transform="translate(460, 145)" filter="url(#shadow)">
+    <rect width="210" height="90" rx="16" fill="#dcfce7" stroke="#16a34a" stroke-width="2.5" />
+    <text x="105" y="38" font-size="18" font-weight="700" fill="#14532d" text-anchor="middle">IN_PROGRESS</text>
+    <line x1="15" y1="48" x2="195" y2="48" stroke="#86efac" stroke-width="1.5" stroke-dasharray="3 3" />
+    <text x="105" y="66" font-size="12" font-weight="600" fill="#166534" text-anchor="middle">LED Indicates Turn</text>
+    <text x="105" y="80" font-size="11" fill="#15803d" text-anchor="middle">Red: X (PB10) | Grn: O (PB11)</text>
+  </g>
+
+  <!-- Self-Loop IN_PROGRESS -->
+  <path d="M 520 145 C 520 50, 610 50, 610 143" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)" fill="none" />
+  <g transform="translate(565, 38)">
+    <rect x="-125" y="-32" width="250" height="58" rx="6" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1" />
+    <text x="0" y="-18" font-size="10.5" font-weight="700" fill="#14532d" text-anchor="middle">Valid MOVE [no win] / OK:BOARD:&lt;grid&gt;</text>
+    <text x="0" y="-5" font-size="10" fill="#166534" text-anchor="middle">Invalid MOVE / NACK:OCCUPIED|RANGE|NOTURN</text>
+    <text x="0" y="8" font-size="10" fill="#64748b" text-anchor="middle">STATE / BOARD:&lt;grid&gt; | NEW / NACK:BADCMD</text>
+  </g>
+
+  <!-- ==================== STATE 3: GAME_OVER ==================== -->
+  <g transform="translate(840, 145)" filter="url(#shadow)">
+    <rect width="200" height="90" rx="16" fill="#fee2e2" stroke="#dc2626" stroke-width="2.5" />
+    <text x="100" y="38" font-size="18" font-weight="700" fill="#7f1d1d" text-anchor="middle">GAME_OVER</text>
+    <line x1="15" y1="48" x2="185" y2="48" stroke="#fca5a5" stroke-width="1.5" stroke-dasharray="3 3" />
+    <text x="100" y="66" font-size="12" font-weight="600" fill="#991b1b" text-anchor="middle">5 Hz LED Blinking</text>
+    <text x="100" y="80" font-size="11" fill="#b91c1c" text-anchor="middle">Winner: Red/Grn | Draw: Both</text>
+  </g>
+
+  <!-- Self-Loop GAME_OVER -->
+  <path d="M 900 145 C 900 70, 980 70, 980 143" stroke="#dc2626" stroke-width="2" marker-end="url(#arrow-red)" fill="none" />
+  <g transform="translate(940, 52)">
+    <rect x="-95" y="-32" width="190" height="45" rx="6" fill="#fef2f2" stroke="#fecaca" stroke-width="1" />
+    <text x="0" y="-18" font-size="11" font-weight="600" fill="#7f1d1d" text-anchor="middle">STATE / WIN:&lt;X|O&gt; | DRAW</text>
+    <text x="0" y="-4" font-size="10.5" fill="#991b1b" text-anchor="middle">MOVE, RESIGN / NACK:NOGAME</text>
+    <text x="0" y="8" font-size="10" fill="#64748b" text-anchor="middle">CONNECT / OK</text>
+  </g>
+
+  <!-- ==================== FORWARD TRANSITIONS ==================== -->
+
+  <!-- Transition: IDLE -> IN_PROGRESS -->
+  <path d="M 290 178 L 458 178" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)" fill="none" />
+  <g transform="translate(375, 162)">
+    <rect x="-80" y="-15" width="160" height="22" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+    <text x="0" y="1" font-size="11" font-weight="700" fill="#15803d" text-anchor="middle">NEW / OK:BOARD:.........</text>
+  </g>
+
+  <!-- Transition: IN_PROGRESS -> GAME_OVER -->
+  <path d="M 670 178 L 838 178" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-red)" fill="none" />
+  <g transform="translate(755, 142)">
+    <rect x="-84" y="-34" width="168" height="58" rx="5" fill="#ffffff" stroke="#fca5a5" stroke-width="1" />
+    <text x="0" y="-20" font-size="10.5" font-weight="700" fill="#b91c1c" text-anchor="middle">MOVE [win] / WIN:&lt;X|O&gt;</text>
+    <text x="0" y="-7" font-size="10.5" font-weight="700" fill="#b91c1c" text-anchor="middle">MOVE [draw] / DRAW</text>
+    <text x="0" y="6" font-size="10.5" font-weight="700" fill="#b91c1c" text-anchor="middle">RESIGN / OK:GAMEOVER</text>
+  </g>
+
+  <!-- Transition: GAME_OVER -> IN_PROGRESS (Replay) -->
+  <path d="M 840 215 L 672 215" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)" fill="none" />
+  <g transform="translate(755, 230)">
+    <rect x="-80" y="-11" width="160" height="22" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+    <text x="0" y="5" font-size="11" font-weight="700" fill="#15803d" text-anchor="middle">NEW / OK:BOARD:.........</text>
+  </g>
+
+  <!-- ==================== RESET TRANSITIONS (Curving to IDLE) ==================== -->
+
+  <!-- Reset from IN_PROGRESS -> IDLE -->
+  <path d="M 530 235 C 530 320, 240 320, 240 237" stroke="#2563eb" stroke-width="2" marker-end="url(#arrow-blue)" fill="none" />
+  <g transform="translate(385, 310)">
+    <rect x="-115" y="-14" width="230" height="26" rx="5" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1" />
+    <text x="0" y="3" font-size="11" font-weight="600" fill="#1d4ed8" text-anchor="middle">SW0 Press | CONNECT | DISCONNECT</text>
+  </g>
+
+  <!-- Reset from GAME_OVER -> IDLE -->
+  <path d="M 940 235 C 940 420, 180 420, 180 237" stroke="#2563eb" stroke-width="2" marker-end="url(#arrow-blue)" fill="none" />
+  <g transform="translate(560, 410)">
+    <rect x="-135" y="-14" width="270" height="26" rx="5" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1" />
+    <text x="0" y="3" font-size="11" font-weight="600" fill="#1d4ed8" text-anchor="middle">SW0 Press (Hardware) | CONNECT | DISCONNECT</text>
+  </g>
+
+  <!-- Note Footer -->
+  <g transform="translate(550, 465)">
+    <text x="0" y="0" font-size="11.5" font-style="italic" fill="#64748b" text-anchor="middle">Authoritative EEE3095S Finite State Machine — Formal Mealy Syntax: Event [Guard] / Output Response</text>
+  </g>
+</svg>

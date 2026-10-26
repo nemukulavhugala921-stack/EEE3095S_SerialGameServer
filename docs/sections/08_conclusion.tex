@@ -1,0 +1,27 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+% ── Mark scheme: 5 marks ──────────────────────────────────────────────────────
+
+This project designed, implemented, and verified an authoritative Tic-Tac-Toe game server on an STM32F051 microcontroller communicating with a thin Python Tkinter GUI client over USART1 at 115\,200 baud.
+The system divides responsibilities strictly: the microcontroller acts as the sole referee, storing the board state, enforcing turn sequence, detecting win/draw outcomes, and updating physical LEDs, while the host GUI handles only user input and graphical display.
+The server ensures that rejected requests leave the internal game state invariant before committing any memory changes.
+
+System verification was achieved across two testing tiers:
+\begin{itemize}
+    \item 19 automated unit and integration tests executing under \texttt{pytest} verified protocol framing, oversized frame recovery, line-ending handling, and client-side error parsing with zero failures.
+    \item 26 physical hardware assertions executed over \texttt{COM9} confirmed that the microcontroller's UART responses match the specification byte-for-byte across all compulsory requirements.
+    \item End-to-end round-trip latency averaged 4.2\,ms, easily satisfying interactive GUI responsiveness requirements.
+\end{itemize}
+
+\subsection{System Limitations}
+The current design has three main limitations:
+\begin{enumerate}
+    \item \textbf{Transport Error Detection}: The application protocol relies on the USB packet checksums provided by the onboard ST-Link Virtual COM Port. The serial payload lacks an application-layer CRC or parity check, meaning byte corruption over a long physical serial line could pass undetected if it matches valid syntax.
+    \item \textbf{Single-Client Concurrency}: The server architecture is single-session, communicating with one host client at a time over USART1 without arbitrating between two independent physical serial connections.
+    \item \textbf{Volatile Game State}: Game state resides in volatile SRAM (\texttt{g\_board}). A power interruption resets the session to \texttt{IDLE} without persistent match logging in non-volatile memory.
+\end{enumerate}
+
+\subsection{Potential Extensions}
+Logical future extensions include embedding an optimal Minimax decision algorithm into the microcontroller's Flash memory for standalone single-player matches, configuring a hardware timer (such as \texttt{TIM14}) as a per-turn chess clock, and adding an 8-bit CRC suffix to every serial frame for robust deployment over industrial fieldbuses.
+Overall, the project demonstrates that an inexpensive microcontroller can reliably serve as a strict, standalone referee for turn-based systems.

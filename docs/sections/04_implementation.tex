@@ -1,0 +1,185 @@
+\section{Implementation}
+\label{sec:impl}
+
+% ── Mark scheme: 15 marks ─────────────────────────────────────────────────────
+
+This section details four non-trivial implementation challenges across the embedded firmware and the host client.
+For each challenge, we state the concrete engineering problem, present the minimal code listing that solves it (with comments trimmed for conciseness), and discuss why the obvious naive approach failed during development.
+
+\subsection{Interrupt Ring Buffering and Flag Clearance Prevent UART Lockup}
+
+\subsubsection{Problem and Hardware Constraints}
+At 115\,200 baud, bytes arrive at the microcontroller every $86.8\,\mu\text{s}$.
+If the CPU is busy updating LED states or evaluating game rules, standard synchronous polling will miss characters.
+More critically, serial bus noise or hot-plugging the USB cable frequently triggers Overrun (\texttt{ORE}), Framing (\texttt{FE}), or Noise (\texttt{NE}) hardware flags in the STM32 USART peripheral.
+According to the STM32F0 reference manual~\cite{rm0091}, an unhandled overrun error inhibits the Receive Data Ready (\texttt{RXNE}) flag, completely freezing UART reception until the error is explicitly cleared.
+
+\subsubsection{Firmware Solution}
+Listing~\ref{lst:ringbuf} shows the interrupt reception and error-recovery handlers in \texttt{protocol.c}.
+Incoming bytes are placed into a circular ring buffer dimensioned at \texttt{PROTOCOL\_RING\_BUFFER\_SIZE} (128 bytes).
+Because the enqueue condition \texttt{(next != g\_ring\_tail)} reserves one empty slot to unambiguously differentiate a full queue from an empty queue, the buffer's usable capacity is 127 bytes.
+If the buffer fills completely before the main loop drains it, additional incoming bytes are discarded in the ISR to prevent corrupting unread data.
+Whenever a bus error occurs, hardware error flags (\texttt{ORE}, \texttt{FE}, \texttt{NE}) are cleared directly via register writes or ST HAL macros~\cite{um1785}, and reception is re-armed, allowing the interface to recover from cable reconnection glitches.
+
+\begin{lstlisting}[language=C, caption={Interrupt ring buffer and hardware error clearance (\texttt{protocol.c}).}, label=lst:ringbuf]
+void protocol_rx_isr(void) {
+    if (g_huart == NULL) return;
+    uint16_t next = (g_ring_head + 1) % PROTOCOL_RING_BUFFER_SIZE;
+    if (next != g_ring_tail) {
+        g_ring_buf[g_ring_head] = g_rx_isr_byte;
+        g_ring_head = next;
+    }
+    HAL_UART_Receive_IT(g_huart, &g_rx_isr_byte, 1);
+}
+
+void protocol_error_isr(void) {
+    if (g_huart == NULL) return;
+    /* Clear flags to prevent hardware receiver lockup */
+    __HAL_UART_CLEAR_OREFLAG(g_huart);
+    __HAL_UART_CLEAR_FEFLAG(g_huart);
+    __HAL_UART_CLEAR_NEFLAG(g_huart);
+    HAL_UART_Receive_IT(g_huart, &g_rx_isr_byte, 1);
+}
+\end{lstlisting}
+
+\subsubsection{Failure Modes of the Naive Alternative}
+The naive approach was using blocking \texttt{HAL\_UART\_Receive()} inside the main super-loop.
+This caused two fatal issues during early testing:
+\begin{enumerate}
+    \item It stalled the main loop, introducing noticeable lag into status LED updates and missing button presses.
+    \item Unplugging and re-plugging the USB cable while the server was running generated a transient framing error that locked the UART hardware permanently, requiring a physical power cycle.
+\end{enumerate}
+
+\subsection{Bounded Frame Assembly Rejects Oversized Input Without Buffer Overflows}
+
+\subsubsection{Problem and Security Constraints}
+An embedded server must defend against malformed or malicious inputs.
+If a client sends an unbroken stream of characters without a terminating newline, an unbounded buffer will overrun the microcontroller's RAM, causing undefined behaviour or a hard fault.
+Conversely, if an oversized frame is discarded prematurely mid-stream, trailing bytes will bleed into the next valid command, corrupting state.
+
+\subsubsection{Firmware Solution}
+Listing~\ref{lst:poll} shows the non-blocking frame assembly loop in \texttt{protocol\_poll()}.
+It consumes bytes from the ring buffer, silently strips carriage returns (\texttt{\textbackslash r}), and stores characters in \texttt{g\_frame\_buf}, which is dimensioned at 65 bytes (\texttt{PROTOCOL\_MAX\_FRAME\_LEN + 1}) to accommodate up to 64 payload characters plus a null terminator.
+The terminating newline (\texttt{\textbackslash n}) is excluded from the 64-byte count.
+If a frame reaches 65 characters without a newline, \texttt{g\_frame\_overflow} is latched to true, and all subsequent characters are discarded.
+Only when the trailing newline (\texttt{\textbackslash n}) arrives is the oversized frame rejected with \texttt{NACK:BADCMD\textbackslash n}, resetting the length and overflow flags so the subsequent command is processed normally.
+
+\begin{lstlisting}[language=C, caption={Frame assembly with 64-byte overflow protection (\texttt{protocol.c}).}, label=lst:poll]
+void protocol_poll(void) {
+    while (g_ring_tail != g_ring_head) {
+        uint8_t c = g_ring_buf[g_ring_tail];
+        g_ring_tail = (g_ring_tail + 1) % PROTOCOL_RING_BUFFER_SIZE;
+        if (c == '\r') continue;
+        if (c == '\n') {
+            if (g_frame_overflow) {
+                g_frame_overflow = false;
+                g_frame_len = 0;
+                protocol_send("NACK:BADCMD\n");
+            } else if (g_frame_len > 0) {
+                g_frame_buf[g_frame_len] = '\0';
+                protocol_dispatch_command(g_frame_buf);
+                g_frame_len = 0;
+            }
+            continue;
+        }
+        if (!g_frame_overflow) {
+            if (g_frame_len < PROTOCOL_MAX_FRAME_LEN)
+                g_frame_buf[g_frame_len++] = (char)c;
+            else
+                g_frame_overflow = true;
+        }
+    }
+}
+\end{lstlisting}
+
+\subsubsection{Failure Modes of the Naive Alternative}
+Returning \texttt{NACK:BADCMD} immediately upon the 65th byte fails because the client may still be transmitting the remainder of that oversized line.
+The remaining characters would then be parsed as an independent, partial command (e.g. \texttt{E:X:0} instead of \texttt{MOVE:X:0}), triggering cascading false errors.
+Discarding until the delimiter guarantees link resynchronization.
+
+\subsection{Non-Blocking Software Debounce Isolates Game State from Switch Noise}
+
+\subsubsection{Problem and Real-Time Constraints}
+Mechanical switches such as \texttt{SW0} bounce for 10--30\,ms upon contact closure.
+Triggering on raw GPIO transitions or hardware external interrupts causes repeated reset events.
+Furthermore, embedded systems must never stall the CPU during switch settling.
+
+\subsubsection{Firmware Solution}
+Listing~\ref{lst:debounce} shows the non-blocking debouncer in \texttt{hardware.c}.
+It samples the input pin during each main loop iteration against \texttt{HAL\_GetTick()}.
+Any change in the raw pin restarts the debounce counter.
+Only after the pin state remains stable for a continuous 50\,ms is the new level latched into \texttt{g\_btn\_stable}.
+On an active-low falling edge, the game is re-initialised to \texttt{IDLE} and the LEDs are turned off.
+
+\begin{lstlisting}[language=C, caption={Non-blocking 50\,ms button debouncer (\texttt{hardware.c}).}, label=lst:debounce]
+void hardware_update(void) {
+    uint32_t now = HAL_GetTick();
+    GPIO_PinState raw = HAL_GPIO_ReadPin(GPIOA, UCT_SW0_Pin);
+    if (raw != g_btn_last_raw) {
+        g_btn_last_time = now;
+        g_btn_last_raw = raw;
+    }
+    if ((now - g_btn_last_time) >= BUTTON_DEBOUNCE_MS) {
+        if (raw != g_btn_stable) {
+            g_btn_stable = raw;
+            /* Falling edge: Button pressed (Active Low) */
+            if (g_btn_stable == GPIO_PIN_RESET) {
+                game_init();
+                HAL_GPIO_WritePin(GPIOB, UCT_LED_RED_Pin | 
+                                         UCT_LED_GREEN_Pin, 
+                                  GPIO_PIN_RESET);
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\subsubsection{Failure Modes of the Naive Alternative}
+The naive approach of inserting a blocking delay (\texttt{HAL\_Delay(50)}) after detecting a pin press freezes the CPU.
+While blocked, the UART interrupt ring buffer fills up and overflows if the client transmits commands simultaneously, dropping user moves.
+The non-blocking timer approach allows the protocol parser to continue running uninterrupted while the switch settles.
+
+\subsection{Client Request-Response Timeout Prevents GUI Thread Freezes}
+
+\subsubsection{Problem and Responsiveness Constraints}
+In graphical applications, blocking calls on the main thread cause the operating system to flag the window as ``Not Responding''.
+If the serial cable is disconnected mid-game or the STM32 loses power, standard blocking calls (such as Python's default \texttt{serial.readline()}) hang indefinitely.
+
+\subsubsection{Client Solution}
+Listing~\ref{lst:serialclient} illustrates \texttt{send\_command()} in \texttt{serial\_client.py}.
+The client configures PySerial with a per-read timeout of $1.0\,\text{s}$ (\texttt{timeout=1.0}).
+After transmitting the command, it consumes the response byte-by-byte in a \texttt{while} loop up to \texttt{MAX\_RESPONSE\_LENGTH} (64 bytes).
+The 1.0\,s timeout applies to each individual \texttt{connection.read(1)} call.
+If the serial link stalls mid-transmission or the cable is unplugged, \texttt{connection.read(1)} returns an empty byte string (\texttt{b""}) upon timeout.
+The function catches this, closes the connection via \texttt{disconnect()} to release system resources, and returns \texttt{None}, enabling the GUI event loop to present a reconnection prompt without freezing the window indefinitely.
+
+\begin{lstlisting}[language=Python, caption={Bounded request-response reader with timeout (\texttt{serial\_client.py}).}, label=lst:serialclient]
+def send_command(command):
+    global connection
+    if connection is None:
+        return None
+    try:
+        msg = (command.strip() + "\n").encode("ascii")
+        connection.write(msg)
+        response = bytearray()
+        while len(response) < MAX_RESPONSE_LENGTH:
+            byte = connection.read(1)
+            if not byte: # Timeout or cable disconnect
+                disconnect()
+                return None
+            if byte == b"\n":
+                break
+            if byte != b"\r":
+                response.extend(byte)
+        else: # Exceeded 64 bytes without newline
+            disconnect()
+            return None
+        return response.decode("ascii")
+    except (OSError, serial.SerialException):
+        disconnect()
+        return None
+\end{lstlisting}
+
+\subsubsection{Failure Modes of the Naive Alternative}
+Relying on Python's built-in \texttt{readline()} without per-byte bounds led to platform-specific buffering bugs: on Windows, partial lines were cached in internal driver buffers, causing subsequent commands to read stale data.
+Explicit byte-by-byte parsing with a 64-byte limiter and per-read timeouts prevents driver buffer desynchronization.

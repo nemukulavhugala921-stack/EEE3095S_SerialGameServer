@@ -20,6 +20,9 @@ The embedded game server is deployed on the **UCT STM32F051 Development Board** 
 
 ## 2. Circuit Diagram (Schematic Representation)
 
+> [!TIP]
+> A publication-quality vector schematic is available at [**`docs/circuit_schematic.svg`**](file:///c:/Users/NEMUKULA%20VHUGALA/OneDrive%20-%20University%20of%20Cape%20Town/Desktop/3rd%20year/EEE3095S/EEE3096S_Project/docs/circuit_schematic.svg). You can import this directly into your IEEE report Word or LaTeX document without pixelation.
+
 ```text
                              +------------------------+
                              |    STM32F051C8T6       |
