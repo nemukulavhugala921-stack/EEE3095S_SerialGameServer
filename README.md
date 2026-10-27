@@ -4,6 +4,7 @@ An authoritative embedded game server implemented on an STM32F051 development bo
 
 ## Repository Structure
 
+- `report/`: Compiled final technical project report PDF (`EEE3095S_Project_Report_NMKVHU004_MNYUMU003.pdf`).
 - `embedded/`: STM32CubeIDE firmware project source code (C / HAL).
 - `client/`: Thin PC-side GUI client (`gui.py`) and serial transport library (`serial_client.py`).
 - `tests/`: Automated unit, integration, and protocol framing test harness (`pytest`).
