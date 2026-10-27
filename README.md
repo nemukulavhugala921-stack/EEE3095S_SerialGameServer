@@ -4,11 +4,9 @@ An authoritative embedded game server implemented on an STM32F051 development bo
 
 ## Repository Structure
 
-- `embedded/`: STM32CubeIDE project source code (C / HAL).
-- `client/`: Thin PC-side GUI client and serial communication library (Python).
-- `tests/`: Automated test harness (pytest).
-- `docs/`: Circuit diagram, Server FSM, GUI flowchart, and sequence diagrams.
-- `report/`: IEEE Conference Format project report and source materials.
+- `embedded/`: STM32CubeIDE firmware project source code (C / HAL).
+- `client/`: Thin PC-side GUI client (`gui.py`) and serial transport library (`serial_client.py`).
+- `tests/`: Automated unit, integration, and protocol framing test harness (`pytest`).
 
 ## Protocol Summary
 - **Physical Link:** ST-Link USB Virtual COM Port (115200 8N1)
