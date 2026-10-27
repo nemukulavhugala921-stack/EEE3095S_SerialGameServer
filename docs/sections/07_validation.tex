@@ -6,7 +6,7 @@
 System verification was performed using a two-tier automated testing strategy: a local suite executing against an in-memory socket mock server under \texttt{pytest}~\cite{pytest}, and an end-to-end regression script driving the physical STM32F051 microcontroller over the Virtual COM Port via \texttt{pySerial}~\cite{pyserial}.
 All compulsory requirements set out in the project brief were evaluated and achieved 100\% passing status.
 
-\subsection{Two-Tier Automated Suite Verifies Functional Specification Across 19 Test Cases}
+\subsection{Automated Suite Verifies Functional Specification Across 48 Test Cases}
 
 \subsubsection{Test Fixtures and Isolation}
 To ensure deterministic, reproducible test results without human intervention, each automated test runs in complete isolation.
@@ -18,17 +18,17 @@ The test suite is invoked from the command line using:
 \begin{lstlisting}[language=bash]
 python -m pytest tests/ -v
 \end{lstlisting}
-The full automated unit and integration suite comprises 19 test cases across four modules:
+The full automated unit and integration suite comprises 48 test cases across four modules:
 \begin{itemize}
-    \item \texttt{test\_gui\_responses.py} (5 tests): Validates client-side parsing of all valid and error responses.
+    \item \texttt{test\_gui\_responses.py} (33 tests): Validates client-side response parsing, error banners, board resynchronization, resignation dialogs, and clean window closing.
     \item \texttt{test\_mock\_server\_framing.py} (4 tests): Stress-tests partial frames, oversized lines ($>64$ bytes), and line-ending edge cases.
-    \item \texttt{test\_serial\_client.py} (1 test): Verifies transport connection and timeout handling.
+    \item \texttt{test\_serial\_client.py} (2 tests): Verifies transport connection, incomplete response handling, and read timeouts.
     \item \texttt{test\_server.py} (9 tests): Validates the core FSM, rule enforcement, win detection, and draw sequences.
 \end{itemize}
 The automated suite executed with zero failures:
 \begin{center}
 \footnotesize
-\texttt{====== 19 passed in 2.43s ======}
+\texttt{====== 48 passed in 0.68s ======}
 \end{center}
 
 \subsection{Verification of Compulsory Brief Requirements on Real Silicon}

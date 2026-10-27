@@ -93,7 +93,7 @@ This paper presents the design, implementation, and empirical verification of an
 The microcontroller operates as the sole referee and single source of truth, enforcing game state, turn alternation, and move legality through a five-stage gatekeeping pipeline before committing any changes to memory.
 Protocol robustness is ensured through an interrupt-driven circular ring buffer with a 64-byte frame ceiling, silent carriage-return stripping, and delimiter-based resynchronization that returns specific error codes without state corruption.
 System verification was conducted using both an automated \texttt{pytest} test suite and a hardware regression harness driving the physical board over its Virtual COM Port.
-The system achieved 100\% pass rates across all 19 automated unit and integration tests as well as 26 physical hardware assertions, with an average measured round-trip transaction latency of 4.2\,ms.
+The system achieved 100\% pass rates across all 48 automated unit and integration tests as well as 26 physical hardware assertions, with an average measured round-trip transaction latency of 4.2\,ms.
 \end{abstract}
 
 \input{sections/01_introduction}
@@ -112,7 +112,7 @@ The system achieved 100\% pass rates across all 19 automated unit and integratio
 Department of Electrical Engineering, University of Cape Town, ``{EEE3095S} {CS} Project 2026: Serial Game Server,'' course project brief, 2026.
 
 \bibitem{guilib}
-Python Software Foundation, ``tkinter --- Python Interface to {Tcl/Tk},'' \emph{Python 3 Documentation}, \url{https://docs.python.org/3/library/tkinter.html}, Python version 3.12/3.13.
+Python Software Foundation, ``tkinter: Python Interface to {Tcl/Tk},'' \emph{Python 3 Documentation}, \url{https://docs.python.org/3/library/tkinter.html}, Python version 3.12/3.13.
 
 \bibitem{rm0091}
 STMicroelectronics, \emph{RM0091: STM32F0x1/STM32F0x2/STM32F0x8 Advanced Arm-based 32-bit MCUs Reference Manual}, 2017.

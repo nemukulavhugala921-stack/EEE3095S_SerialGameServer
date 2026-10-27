@@ -14,3 +14,7 @@ An authoritative embedded game server implemented on an STM32F051 development bo
 - **Physical Link:** ST-Link USB Virtual COM Port (115200 8N1)
 - **Framing:** Plain ASCII, newline-terminated (`\n` or `\r\n`), max 64 bytes
 - **Core Commands:** `CONNECT`, `NEW`, `MOVE:<0-8>`, `STATE`, `RESIGN`, `DISCONNECT`
+
+## Demonstration Video
+A video demonstration of the working system is available on YouTube:
+- [System Demonstration Video](https://youtu.be/fJ0v8J7msK4)

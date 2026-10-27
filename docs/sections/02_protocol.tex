@@ -23,19 +23,19 @@ Table~\ref{tab:framing} summarises the framing rules.
 
 \begin{table}[t]
 \centering
-\caption{Framing rules and the server's response to each violation.}
+\caption{Framing rules and the server's response to each condition.}
 \label{tab:framing}
 \footnotesize
-\begin{tabular}{@{}L{3.0cm}L{5.0cm}@{}}
+\begin{tabular}{@{}L{2.8cm}L{5.2cm}@{}}
 \toprule
 Rule & Server behaviour \\
 \midrule
 Terminator          & \texttt{\textbackslash n} ends a frame; \texttt{\textbackslash r} is silently discarded \\
-Maximum frame length & 64 bytes (excluding the terminator); excess bytes are discarded and \texttt{NACK:BADCMD} is returned when \texttt{\textbackslash n} arrives \\
-Incomplete frame    & No timeout enforced; bytes accumulate until \texttt{\textbackslash n} arrives \\
-Invalid character   & Treated as a regular byte; only the command keyword check rejects it \\
-Checksum            & Not implemented; USB transfer integrity is relied upon \\
-UART overrun / framing error & Hardware flags cleared in the ISR; UART re-armed immediately \\
+Maximum frame length & 64 bytes (excluding delimiter); excess bytes discarded, returns \texttt{NACK:BADCMD} upon \texttt{\textbackslash n} \\
+Incomplete frame    & Discarded after 500\,ms timeout; returns \texttt{NACK:BADCMD} \\
+Invalid character   & Accumulated until delimiter; rejected by command validator \\
+Checksum            & None; short USB-VCP physical layer provides USB CRC \\
+UART errors         & Hardware flags cleared in error ISR; receiver re-armed \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -67,21 +67,19 @@ The server always responds with exactly one line before accepting the next comma
 
 \begin{table}[t]
 \centering
-\caption{Complete command set. The server accepts every command in any state;
-states that do not recognise a command return \texttt{NACK:NOGAME} or
-\texttt{NACK:BADCMD} as shown in Table~\ref{tab:errors}.}
+\caption{Complete command set. The serial link receives frames in any state, but command execution depends strictly on the current FSM state. Incompatible requests return \texttt{NACK:NOGAME} or \texttt{NACK:BADCMD}.}
 \label{tab:commands}
 \scriptsize
 \begin{tabular}{@{}L{2.0cm}L{1.8cm}L{4.2cm}@{}}
 \toprule
-Request & Accepted in & Success response \\
+Request & Valid in & Success response \\
 \midrule
-\texttt{CONNECT}          & Any state        & \texttt{OK} (resets to IDLE) \\
+\texttt{CONNECT}          & Any state        & \texttt{OK} (resets session to IDLE) \\
 \texttt{NEW}              & IDLE, GAME\_OVER & \texttt{OK:BOARD:.........} \\
 \texttt{MOVE:\textit{p}:\textit{i}} & IN\_PROGRESS & \texttt{OK:BOARD:\textit{grid}}, \texttt{WIN:\textit{p}}, or \texttt{DRAW} \\
 \texttt{STATE}            & Any state        & \texttt{BOARD:\textit{grid}} \\
 \texttt{RESIGN}           & IN\_PROGRESS     & \texttt{OK:GAMEOVER} \\
-\texttt{DISCONNECT}       & Any state        & \texttt{OK} (resets to IDLE) \\
+\texttt{DISCONNECT}       & Any state        & \texttt{OK} (resets session to IDLE) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -91,25 +89,24 @@ Request & Accepted in & Success response \\
 Table~\ref{tab:errors} lists every error response.
 The order of checks inside \texttt{game\_process\_move()} matters because
 a single bad command can fail more than one check.
-The server applies them in this fixed order:
-(1)~payload format, (2)~game state, (3)~index range, (4)~turn, (5)~occupancy.
-This means each rejected command maps to exactly one error code, which makes
-the test results unambiguous.
+The server applies them in a fixed sequence:
+(1)~syntax and player token, (2)~game state, (3)~cell index range, (4)~turn order, and (5)~cell occupancy.
+This ensures each rejected command yields an unambiguous, predictable error code.
 
 \begin{table}[t]
 \centering
-\caption{Every error response and the condition that triggers it.}
+\caption{Every error response and the exact condition that triggers it.}
 \label{tab:errors}
 \footnotesize
 \begin{tabular}{@{}L{2.4cm}L{5.6cm}@{}}
 \toprule
 Response & Sent when \\
 \midrule
-\texttt{NACK:BADCMD}    & The command is not recognised, or the frame exceeds 64 bytes, or the \texttt{MOVE} payload is malformed \\
-\texttt{NACK:NOGAME}    & \texttt{MOVE} or \texttt{RESIGN} is received when the game state is IDLE or GAME\_OVER \\
-\texttt{NACK:RANGE}     & The cell index in a \texttt{MOVE} command is not an integer in the range 0--8 \\
-\texttt{NACK:NOTURN}    & The player letter in a \texttt{MOVE} command does not match the current turn \\
-\texttt{NACK:OCCUPIED}  & The target cell already contains \texttt{X} or \texttt{O} \\
+\texttt{NACK:BADCMD}    & Unrecognised verb, frame $>64$ bytes, 500\,ms timeout, invalid player token (not \texttt{X} or \texttt{O}), or malformed syntax (e.g. missing colon or omitting player) \\
+\texttt{NACK:NOGAME}    & \texttt{MOVE} or \texttt{RESIGN} received while in \texttt{IDLE} or \texttt{GAME\_OVER} \\
+\texttt{NACK:RANGE}     & Move index is not a decimal digit or falls outside the valid range 0 to 8 \\
+\texttt{NACK:NOTURN}    & Claiming player token does not match the active turn (\texttt{g\_current\_player}) \\
+\texttt{NACK:OCCUPIED}  & The requested cell already contains \texttt{X} or \texttt{O} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -120,7 +117,7 @@ The reference protocol in the project brief~\cite{brief} specifies a move comman
 Under that format, a server enforces alternating turns by assigning each incoming legal move to whichever player currently holds the active turn, advancing its internal turn counter automatically.
 However, because \texttt{MOVE:\textit{i}} carries no player token, the server has no identity against which to validate the originator of the request; it cannot detect if a specific participant attempts to submit a move out of order.
 
-As permitted by the project brief---which instructs teams to adapt the protocol and highlight departures from the reference---our implementation adopts \texttt{MOVE:\textit{p}:\textit{i}} as a deliberate design choice, where $p \in \{\texttt{X}, \texttt{O}\}$ denotes the claiming player token and $i \in \{0, \dots, 8\}$ denotes the target cell index.
+As permitted by the project brief (which instructs teams to adapt the protocol and highlight departures from the reference), our implementation adopts \texttt{MOVE:\textit{p}:\textit{i}} as a deliberate design choice, where $p \in \{\texttt{X}, \texttt{O}\}$ denotes the claiming player token and $i \in \{0, \dots, 8\}$ denotes the target cell index.
 This explicit player parameter allows the server to verify that the claimed identity matches the active player (\texttt{g\_current\_player}) before altering state, returning \texttt{NACK:NOTURN} if an out-of-order move is submitted (e.g., submitting \texttt{MOVE:X:1} immediately after \texttt{MOVE:X:0}).
 If a client transmits the reference \texttt{MOVE:\textit{i}} format without the player prefix, the server's syntax validator rejects it deterministically with \texttt{NACK:BADCMD}.
 Both the Python Tkinter client and the automated test harnesses implement and verify this command format.

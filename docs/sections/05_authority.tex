@@ -75,7 +75,7 @@ This property is established through the structural encapsulation and control fl
     \begin{itemize}
         \item \texttt{test\_out\_of\_turn\_move}: Asserts that sending an out-of-turn move returns \texttt{NACK:NOTURN} and confirms via \texttt{STATE} that \texttt{g\_board} is unmodified.
         \item \texttt{test\_occupied\_cell}: Verifies that playing on an occupied cell returns \texttt{NACK:OCCUPIED} without overwriting the existing mark.
-        \item \texttt{test\_out\_of\_range\_move}: Verifies that indices outside 0--8 return \texttt{NACK:RANGE} with board state invariant.
+        \item \texttt{test\_out\_of\_range\_move}: Verifies that indices outside 0 to 8 return \texttt{NACK:RANGE} with board state invariant.
         \item \texttt{test\_unknown\_command}: Verifies that garbage input returns \texttt{NACK:BADCMD} while the board remains unchanged.
     \end{itemize}
 \end{enumerate}
@@ -86,7 +86,7 @@ The active turn is initialized to Player~X whenever \texttt{NEW} is accepted.
 The server enforces alternation strictly: Player~X and Player~O must take turns sequentially.
 Because our protocol explicitly includes the player token in the command (\texttt{MOVE:p:i}), the server checks both whether the move is legal and whether the claiming player matches \texttt{g\_current\_player}.
 
-If a client attempts to bypass turn order---for example, by sending \texttt{MOVE:X:1} immediately after \texttt{MOVE:X:0}---the server detects the mismatch at check~4, issues \texttt{NACK:NOTURN}, and does not advance the turn.
+If a client attempts to bypass turn order (for example, by sending \texttt{MOVE:X:1} immediately after \texttt{MOVE:X:0}), the server detects the mismatch at check~4, issues \texttt{NACK:NOTURN}, and does not advance the turn.
 Only after a valid move has been written to the board does the server toggle the active player:
 \begin{equation}
 \texttt{g\_current\_player} = (\texttt{player} == \text{'X'}) \mathbin{?} \text{'O'} : \text{'X'}

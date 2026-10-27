@@ -15,7 +15,7 @@ Table~\ref{tab:threats} maps each threat class to its containment mechanism, err
 \toprule
 Threat / Input & Containment and Response & Automated Test \\
 \midrule
-Partial frame & Bytes accumulate in buffer until \texttt{\textbackslash n}; client guard timeout triggers after 1.0\,s & \texttt{test\_partial\_\allowbreak frame\_\allowbreak recovery} \\
+Partial frame & Cleared after 500\,ms timeout, returns \texttt{NACK:BADCMD}; client driver has 1.0\,s read timeout & \texttt{test\_partial\_frame\_\allowbreak timeout\_recovers} \\
 Oversized frame ($>64$ bytes) & Latches \texttt{g\_frame\_overflow}; discards excess bytes until \texttt{\textbackslash n}; returns \texttt{NACK:BADCMD} & \texttt{test\_oversized\_\allowbreak frame\_\allowbreak recovery} \\
 CRLF endings (\texttt{\textbackslash r\textbackslash n}) & Carriage returns (\texttt{\textbackslash r}) silently stripped; \texttt{\textbackslash n} triggers clean execution & \texttt{test\_crlf\_\allowbreak non\_ascii} \\
 Non-ASCII / Garbage & Buffered safely; rejected at command verb parser with \texttt{NACK:BADCMD} & \texttt{test\_crlf\_\allowbreak non\_ascii} \\
@@ -27,20 +27,17 @@ UART hardware error (\texttt{ORE}, \texttt{FE}) & ISR clears hardware flags via 
 \end{tabular}
 \end{table}
 
-\subsection{Partial Frames Accumulate in Buffers Without Premature Reset}
+\subsection{Incomplete Frame Timeout and Client Guard Policies}
 
-\subsubsection{Mechanism and Protocol Invariant}
-A common flaw in embedded serial communication is prematurely resetting a buffer while a legitimate sender is transmitting slowly.
-In our implementation, the STM32 firmware does not enforce an inter-byte timeout.
-Incoming bytes accumulate passively in the circular ring buffer.
-If a host transmits \texttt{CON} and pauses, the microcontroller holds those characters in RAM without consuming CPU cycles or corrupting state.
-Only when the terminating newline character (\texttt{\textbackslash n}) arrives is the frame dispatched for evaluation.
+An incomplete transmission occurs when a client sends characters without a trailing newline delimiter (e.g. \texttt{CON} instead of \texttt{CONNECT\textbackslash n}).
+In our firmware, characters accumulate in the circular ring buffer without consuming CPU cycles or corrupting state.
+To prevent orphaned partial frames from permanently stalling the receiver, \texttt{protocol\_poll()} tracks elapsed time via \texttt{HAL\_GetTick()}.
+If an incomplete frame remains un-terminated for longer than \texttt{PROTOCOL\_FRAME\_TIMEOUT\_MS} (500\,ms), the firmware purges the line buffer, clears overflow flags, and issues \texttt{NACK:BADCMD\textbackslash n}, as asserted by \texttt{test\_partial\_frame\_timeout\_recovers\_and\_idle\_connection\_survives}.
 
-\subsubsection{Measured Timings and Host Guard Policies}
-Because the physical link is exposed over USB, the primary risk of an incomplete frame arises from physical cable disconnection.
-To prevent the client application from hanging indefinitely on an incomplete response, the host driver in \texttt{serial\_client.py} implements an explicit per-byte read timeout of $1.0\,\text{s}$.
-If the serial line goes silent, \texttt{connection.read(1)} times out and cleanly aborts the transaction.
-Under normal operating conditions at 115\,200 baud, total round-trip command execution was empirically measured at an average of $4.2\,\text{ms}$, well within the per-byte timeout boundary.
+This embedded timeout operates independently of the host PC client.
+To prevent the GUI from hanging indefinitely if the serial cable is physically disconnected, \texttt{serial\_client.py} implements an independent per-read timeout of $1.0\,\text{s}$ using PySerial.
+If the serial connection stalls, \texttt{connection.read(1)} times out and cleanly aborts the request-response transaction.
+Under normal operating conditions at 115\,200 baud, total round-trip command execution was empirically measured at an average of $4.2\,\text{ms}$, well within both timeout thresholds.
 
 \subsection{Trailing Delimiters Act as Hard Resynchronization Barriers}
 

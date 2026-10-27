@@ -12,7 +12,7 @@ The STM32 microcontroller is the sole referee.
 It stores the board, validates every action and returns the authoritative result.
 The PC client only draws the board and forwards what the player clicks.
 The central design invariant enforced by the server is that a rejected request
-leaves the game state strictly unchanged---the board after an invalid move is
+leaves the game state strictly unchanged; the board after an invalid move is
 identical to the board before it.
 
 We implemented \textbf{Tic-Tac-Toe} (also called noughts and crosses), the baseline
@@ -39,8 +39,8 @@ harness works.
 Nemukula Vhugala (Partner~A) was responsible for the embedded firmware: the
 interrupt-driven UART receiver and circular ring buffer (\texttt{protocol.c}),
 the game finite-state machine (FSM) and rule engine (\texttt{game.c}), and the
-hardware integration---button debouncing and LED status indicators
-(\texttt{hardware.c}).
+hardware integration (button debouncing and LED status indicators,
+\texttt{hardware.c}).
 Munyai Umusindisi Cindy (Partner~B) was responsible for the PC-side software:
 the serial communication driver (\texttt{serial\_client.py}), the Tkinter GUI
 (\texttt{gui.py}), and the automated hardware test harness
@@ -49,12 +49,11 @@ Both partners contributed to the protocol specification, system integration,
 and this report.
 
 \textbf{Structure.}
-Section~\ref{sec:protocol} describes the serial link, frame format, and full
-command set.
+Section~\ref{sec:protocol} defines the serial protocol, framing, and command set.
 Section~\ref{sec:design} presents the server FSM, GUI flowchart, and circuit diagram.
-Section~\ref{sec:impl} highlights the most challenging pieces of implementation.
-Section~\ref{sec:authority} argues that the server enforces all game rules
-and cannot be bypassed by a misbehaving client.
-Section~\ref{sec:robust} explains how the server handles malformed or unexpected input.
-Section~\ref{sec:valid} presents the automated test results on the real STM32 board.
-Section~\ref{sec:conclusion} summarises the outcome and suggests improvements.
+Section~\ref{sec:impl} explains key firmware and client implementation decisions.
+Section~\ref{sec:authority} details server-side validation and rule enforcement.
+Section~\ref{sec:robust} covers framing recovery and error handling.
+Section~\ref{sec:valid} presents automated and hardware test results.
+Section~\ref{sec:conclusion} concludes with limitations and future work.
+Section~\ref{sec:video} links the video demonstration, Section~\ref{sec:code} identifies the source repository and commit hash, and the report concludes with formal references.

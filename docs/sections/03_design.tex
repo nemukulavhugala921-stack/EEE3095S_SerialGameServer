@@ -12,7 +12,7 @@ To ensure that the embedded server remains testable without requiring physical h
     \item \textbf{Hardware Driver Layer (\texttt{main.c}, \texttt{hardware.c})}: Manages the USART1 peripheral, ring buffers, GPIO push-pull drivers for the status LEDs, and debouncing for the push button.
 \end{itemize}
 
-On the host PC, the client is similarly divided between \texttt{serial\_driver.py} (which handles raw PySerial frame framing and timeout management) and \texttt{gui.py} (which renders the Tkinter visual window).
+On the host PC, the client is similarly divided between \texttt{serial\_client.py} (which handles raw PySerial frame framing and timeout management) and \texttt{gui.py} (which renders the Tkinter visual window).
 Table~\ref{tab:responsibilities} explicitly outlines the ownership of each system responsibility.
 The host GUI is entirely ``thin'': it never decides whether a move is legal, never checks for 3-in-a-row, and never advances the turn counter on its own.
 
@@ -33,7 +33,8 @@ Physical status LEDs & Server & \texttt{hardware.c} (PB10, PB11) \\
 Hardware reset trigger & Server & \texttt{hardware.c} (PA0 Button) \\
 User input forwarding & Client & \texttt{gui.py} \\
 Board rendering & Client & \texttt{gui.py} (Tkinter grid) \\
-Serial link timeouts & Client & \texttt{serial\_driver.py} \\
+Lifecycle controls (New, Resign, Disconnect) & Client & \texttt{gui.py} \\
+Serial link timeouts & Client & \texttt{serial\_client.py} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -61,7 +62,7 @@ As illustrated along the lower pipeline of Fig.~\ref{fig:fsm}, the server checks
 \begin{enumerate}
     \item \textbf{Length and Command Syntax}: Frames exceeding 64 bytes or lacking proper colon delimiters return \texttt{NACK:BADCMD}.
     \item \textbf{Active State Check}: If the state is not \texttt{IN\_PROGRESS}, the server returns \texttt{NACK:NOGAME}.
-    \item \textbf{Index Range Check}: The cell index string is converted to an integer; if $i < 0$ or $i > 8$, the server returns \texttt{NACK:RANGE}.
+    \item \textbf{Index Range Check}: The cell index string is converted to an integer; if non-numeric or outside the range 0 to 8, the server returns \texttt{NACK:RANGE}.
     \item \textbf{Turn Check}: The player token $p \in \{\texttt{X}, \texttt{O}\}$ is compared against \texttt{g\_current\_player}. If they do not match, the server returns \texttt{NACK:NOTURN}.
     \item \textbf{Occupancy Check}: The target array element \texttt{g\_board[i]} must equal \texttt{'.'}. If already occupied by \texttt{X} or \texttt{O}, the server returns \texttt{NACK:OCCUPIED}.
 \end{enumerate}
@@ -79,19 +80,22 @@ Only when all checks pass does the server write the token into the array, evalua
 
 The Python GUI client is designed as a passive display terminal.
 Its control flow is detailed in Fig.~\ref{fig:gui}.
-Upon startup, the user selects the serial COM port.
+Upon startup, the user selects the serial COM port (or connects to the local mock server).
 The client transmits \texttt{CONNECT\textbackslash n} and awaits \texttt{OK\textbackslash n}.
-To prevent the graphical interface from freezing during serial I/O, the underlying \texttt{SerialDriver} uses a bounded read timeout of $1.0\text{ s}$.
+To prevent the graphical interface from freezing during serial I/O, the underlying \texttt{serial\_client} module uses a per-read timeout of $1.0\text{ s}$.
 If the microcontroller is disconnected or fails to reply within this window, the client catches the timeout exception, displays a non-blocking error dialog, and prompts the user to reconnect.
 
 When a player clicks a board square, the GUI does not mark the square locally.
-Instead, it looks up the current expected player and transmits \texttt{MOVE:p:i\textbackslash n}.
-The GUI then branches on the server's single-line response:
+Instead, it looks up its local assumption of the active player (\texttt{self.current\_player}, initialised to \texttt{X} on \texttt{NEW}) and transmits \texttt{MOVE:p:i\textbackslash n}.
+Crucially, the client alternates \texttt{self.current\_player} \emph{only after} the server confirms the move with an authoritative \texttt{OK:BOARD:grid} response.
+If the client becomes desynchronized or attempts to send an invalid token, the server's authoritative check (\texttt{player == g\_current\_player}) detects the mismatch and returns \texttt{NACK:NOTURN}, preventing the GUI from overriding the true game state.
+The GUI branches on the server's single-line response:
 \begin{itemize}
-    \item \textbf{\texttt{OK:BOARD:grid}}: The GUI parses the 9-character grid and updates each button label and color to match the server's array.
-    \item \textbf{\texttt{NACK:*}}: The GUI leaves the grid unmodified and displays the error message in the status bar (e.g., ``Out of turn!'').
+    \item \textbf{\texttt{OK:BOARD:grid}}: The GUI parses the 9-character grid, updates button labels and colors to match the server's array, and advances the visual turn indicator.
+    \item \textbf{\texttt{NACK:*}}: The GUI leaves the grid unmodified and displays the error message in the status bar (e.g., ``Move rejected by server: NOTURN'').
     \item \textbf{\texttt{WIN:p} or \texttt{DRAW}}: The GUI locks all nine grid buttons, highlights the winning line, and displays the game over announcement.
 \end{itemize}
+Beyond move submission, the client provides dedicated controls for session management: a ``New Game'' button transmitting \texttt{NEW}, a ``Resign'' button confirming player forfeiture and transmitting \texttt{RESIGN} (moving the server to \texttt{GAME\_OVER}), and a ``Disconnect'' button that issues \texttt{DISCONNECT} and releases the serial port cleanly.
 
 \subsection{The Board Interfaces via Virtual COM Port, GPIO LEDs, and Button}
 

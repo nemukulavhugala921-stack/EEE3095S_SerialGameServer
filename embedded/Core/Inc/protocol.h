@@ -10,6 +10,7 @@
  * ==================================================================== */
 #define PROTOCOL_RING_BUFFER_SIZE 128  /* Interrupt circular queue capacity */
 #define PROTOCOL_MAX_FRAME_LEN    64   /* Max characters per command frame including \n */
+#define PROTOCOL_FRAME_TIMEOUT_MS 500  /* Timeout in ms to discard incomplete partial frames */
 
 /* ====================================================================
  * Public API Functions

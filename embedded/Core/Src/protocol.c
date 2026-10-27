@@ -20,6 +20,7 @@ static volatile uint16_t g_ring_tail = 0;
 static char g_frame_buf[PROTOCOL_MAX_FRAME_LEN + 1];
 static uint16_t g_frame_len = 0;
 static bool g_frame_overflow = false;
+static uint32_t g_frame_last_rx = 0;
 
 /* ====================================================================
  * Private Function Prototypes
@@ -37,6 +38,7 @@ void protocol_init(UART_HandleTypeDef *huart)
     g_ring_tail = 0;
     g_frame_len = 0;
     g_frame_overflow = false;
+    g_frame_last_rx = 0;
 
     /* Initialize game engine state */
     game_init();
@@ -101,6 +103,16 @@ void protocol_send(const char *response)
 
 void protocol_poll(void)
 {
+    uint32_t now = HAL_GetTick();
+
+    /* Clear incomplete frame after timeout if no terminating newline arrives */
+    if (g_frame_len > 0 && (now - g_frame_last_rx >= PROTOCOL_FRAME_TIMEOUT_MS))
+    {
+        g_frame_len = 0;
+        g_frame_overflow = false;
+        protocol_send("NACK:BADCMD\n");
+    }
+
     /* Process all bytes currently waiting in the circular ring buffer */
     while (g_ring_tail != g_ring_head)
     {
@@ -140,6 +152,7 @@ void protocol_poll(void)
             if (g_frame_len < PROTOCOL_MAX_FRAME_LEN)
             {
                 g_frame_buf[g_frame_len++] = (char)c;
+                g_frame_last_rx = HAL_GetTick();
             }
             else
             {
